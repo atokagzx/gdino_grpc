@@ -1,0 +1,59 @@
+syntax = "proto3";
+
+package segmentation;
+
+service Detection {
+    rpc detect (stream DetectionRequest) returns (stream DetectionResult) {}
+}
+
+service Segmentation {
+    rpc segment (stream SegmentationRequest) returns (stream SegmentationResult) {}
+}
+
+message SegmentationRequest {
+    NumpyArray image = 1;
+    repeated BoundingBox bounding_boxes = 2;
+    repeated string phrases = 3;
+}
+
+message SegmentationResult {
+    repeated SegmentedItem items = 1;
+}
+
+message SegmentedItem {
+    repeated SegmentationMask masks = 4;
+}
+
+message SegmentationMask {
+    NumpyArray mask = 1;
+    float confidence = 2;
+}
+
+message DetectionRequest {
+    NumpyArray image = 1;
+    string prompt = 2;
+    float box_threshold = 3;
+    float text_threshold = 4;
+}
+
+message DetectionResult {
+    repeated DetectedItem items = 1;
+}
+
+message DetectedItem {
+    BoundingBox bounding_box = 1;
+    string label = 2;
+    float confidence = 3;
+}
+
+message NumpyArray {
+    repeated int32 shape = 1;
+    bytes data = 2;
+}
+
+message BoundingBox {
+    int32 x1 = 1;
+    int32 y1 = 2;
+    int32 x2 = 3;
+    int32 y2 = 4;
+}
