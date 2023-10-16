@@ -17,6 +17,7 @@ from dataclasses import dataclass
 class VideoCaptureBuffless(cv2.VideoCapture):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self._logger = logging.getLogger("video_capture_buffless")
         self.set(cv2.CAP_PROP_BUFFERSIZE, 1)
 
     def read(self):
@@ -24,6 +25,7 @@ class VideoCaptureBuffless(cv2.VideoCapture):
         return super().retrieve()
     
     def __next__(self):
+        self._logger.debug("getting next frame")
         ret, frame = self.read()
         if not ret:
             raise StopIteration
@@ -35,23 +37,25 @@ class VideoCaptureBuffless(cv2.VideoCapture):
     def __del__(self):
         self.release()
 
-
 class DetectionClient(object):
     def __init__(self, 
-                 video_generator: Generator[np.ndarray, None, None],
-                 prompt, box_threshold, text_threshold, confidence_threshold):
+                grpc_channel: grpc.Channel,
+                video_iterator: Generator[np.ndarray, None, None],
+                prompt, box_threshold, text_threshold, confidence_threshold):
         '''
-        @param video_generator: a generator that yields frames
+        @param video_iterator: the video iterator to use
         @param prompt: the prompt to use for grounding
         @param box_threshold: the threshold for bounding box confidence
         @param text_threshold: the threshold for text confidence
         '''
-        self._video_generator = video_generator
+        self._logger = logging.getLogger("detection_client")
+        self._lock = threading.Lock()
+        self._video_iter = video_iterator
         self._prompt = prompt
         self._box_threshold = box_threshold
         self._text_threshold = text_threshold
         self._confidence_threshold = confidence_threshold
-        self._channel = grpc.insecure_channel('localhost:50051')
+        self._channel = grpc_channel
         self._stub = pb2_grpc.DetectionStub(self._channel)
 
     @property
@@ -68,13 +72,15 @@ class DetectionClient(object):
         Generates a request for the server as protobuf items.
         @return: a generator that yields protobuf items
         '''
-        for frame in self._video_generator:
+        for frame in self._video_iter:
+            self._logger.debug("generating detection request, got frame")
             self._last_frame = frame
             frame_as_byte = pb2.NumpyArray(shape=frame.shape, data=frame.tobytes())
             request = pb2.DetectionRequest(image=frame_as_byte,
                             prompt=self._prompt,
                             box_threshold=self._box_threshold,
                             text_threshold=self._text_threshold)
+            self._logger.debug("yielding request to grpc iterator")
             yield request
 
     def __iter__(self):
@@ -88,10 +94,16 @@ class DetectionClient(object):
         Generates a response from the server as protobuf items.
         @return: a generator that yields frame got by the video generator and the response from the server
         '''
-        response_generator = self._stub.detect(self._generate_request())
-        for response in response_generator:
-            filtered_response = self._filter_out_low_confidence(response)
-            yield self._last_frame, filtered_response
+        if self._lock.locked():
+            raise RuntimeError('This class does not support multiple generators at the same time')
+        with self._lock:
+            response_generator = self._stub.detect(self._generate_request())
+            self._logger.debug("starting detection")
+            for response in response_generator:
+                self._logger.debug("got detection response")
+                filtered_response = self._filter_out_low_confidence(response)
+                self._logger.debug("yielding response to client")
+                yield self._last_frame.copy(), filtered_response
 
     def _filter_out_low_confidence(self, response: pb2.DetectionResult) -> pb2.DetectionResult:
         '''
@@ -135,42 +147,36 @@ class DetectionClient(object):
         self._prompt = value
 
     @property
-    def video_generator(self):
-        return self._video_generator
+    def video_iterator(self):
+        return self._video_iter
     
-    @video_generator.setter
-    def video_generator(self, value):
-        self._video_generator = value
-
+    @video_iterator.setter
+    def video_iterator(self, value):
+        self._video_iter = value
 
 class SegmentationClient:
-    def __init__(self, detection_client: DetectionClient):
+    def __init__(self, grpc_channel: grpc.Channel, detection_iterator: Generator[Tuple[np.ndarray, pb2.DetectionResult], None, None]):
         '''
+        @param grpc_channel: the grpc channel to use
         @param detection_client: the detection client to use
         '''
         self._logger = logging.getLogger("segmentation_client")
-        self._detection_client = detection_client
-        self._run_thread()
-
-    def _run_thread(self):
-        self._last_result = None
-        self._channel = grpc.insecure_channel('localhost:50051')
+        self._lock = threading.Lock()
+        self._detection_iter = detection_iterator
+        self._channel = grpc_channel
         self._stub = pb2_grpc.SegmentationStub(self._channel)
-        self._stop = False
-        self._thread = threading.Thread(target=self._loop, daemon=True)
-        self._thread.start()
-
+        
     def _generate_request(self) -> Generator[pb2.SegmentationRequest, None, None]:
         '''
         Generates a request for the server as protobuf items.
         @return: a generator that yields protobuf items
         '''
-        for frame, detection_result in self._detection_client:
-            print('segmenting')
+        for frame, detection_result in self._detection_iter:
+            self._logger.debug("generating segmentation request, got detection result")
             labels = [item.label for item in detection_result.items]
             bboxes = [item.bounding_box for item in detection_result.items]
             self._last_detection_result = {
-                'frame': frame,
+                'frame': frame.copy(),
                 'bboxes': [[getattr(item.bounding_box, field) for field in ('x1', 'y1', 'x2', 'y2')] for item in detection_result.items],
                 'labels': labels,
                 'confidences': [item.confidence for item in detection_result.items],
@@ -197,29 +203,35 @@ class SegmentationClient:
         mask = mask.reshape(image_shape)
         return mask
     
-    def _loop(self):
-        response_generator = self._stub.segment(self._generate_request())
-        for response in response_generator:
-            segmented_items = []
-            for item, bbox, label, detection_confidence in zip(response.items, 
-                                                               self._last_detection_result['bboxes'], 
-                                                               self._last_detection_result['labels'], 
-                                                               self._last_detection_result['confidences']):
-                masks = [self._unencode_mask(mask.mask) for mask in item.masks]
-                confidences = [mask.confidence for mask in item.masks]
-                segmented_items.append(SegmentedItem(
-                    bounding_box = bbox,
-                    label=label,
-                    detection_confidence=detection_confidence,
-                    masks=tuple(Mask(mask, confidence) for mask, confidence in zip(masks, confidences))
-                ))
-            self._last_result = {
-                'frame': self._last_detection_result['frame'],
-                'items': segmented_items
-            }
-            if self._stop: break
+    def _process_response(self, response: pb2.SegmentationResult) -> dict:
+        segmented_items = []
+        for item, bbox, label, detection_confidence in zip(response.items, 
+                                                        self._last_detection_result['bboxes'], 
+                                                        self._last_detection_result['labels'], 
+                                                        self._last_detection_result['confidences']):
+            masks = [self._unencode_mask(mask.mask) for mask in item.masks]
+            confidences = [mask.confidence for mask in item.masks]
+            segmented_items.append(SegmentedItem(
+                bounding_box = bbox,
+                label=label,
+                detection_confidence=detection_confidence,
+                masks=tuple(Mask(mask, confidence) for mask, confidence in zip(masks, confidences))))
+        return segmented_items
 
-            
+    
+    def _generator(self) -> Generator[Tuple[np.ndarray, dict], None, None]:
+        if self._lock.locked():
+            raise RuntimeError('This class does not support multiple generators at the same time')
+        with self._lock:
+            response_generator = self._stub.segment(self._generate_request())
+            self._logger.debug("starting segmentation")
+            for response in response_generator:
+                self._logger.debug("got segmentation response")
+                segmented_items = self._process_response(response)
+                self._logger.debug("processed segmentation response")
+                frame = self._last_detection_result['frame']
+                yield frame, segmented_items
+    
     @property
     def last_detection_result(self) -> dict:
         '''
@@ -233,24 +245,13 @@ class SegmentationClient:
             }
         '''
         return self._last_detection_result
-            
-    @property
-    def last_result(self) -> dict:
-        '''
-        Returns the last result that was processed.
-        @return: the last result that was processed:
-            {
-                'frame': the frame that was processed
-                'items': list of SegmentedItem objects
-            }
-        '''
-        return self._last_result
+
+    def __iter__(self):
+        return self._generator()
     
-    def stop(self):
-        self._stop = True
-        self._thread.join()
-        self._channel.close()
-    
+    def __next__(self):
+        return next(self._generator())
+
 def draw_boxes(image, boxes, phrases, logits):
     for box, phrase, logit in zip(boxes, phrases, logits):
         x1, y1, x2, y2 = box
@@ -285,36 +286,78 @@ class DetectedItem:
 class SegmentedItem(DetectedItem):
     masks: Tuple[Mask]
 
-def main():
-    video_generator = VideoCaptureBuffless(0)
-    video_generator.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
-    video_generator.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
-    detector_client = DetectionClient(video_generator,
-                                      prompt='monitor . cup . human',
-                                      box_threshold=0.05,
-                                      text_threshold=0.05, 
-                                      confidence_threshold=0.2)
-    segmentor_client = SegmentationClient(detector_client)
-    while True:
-        result = segmentor_client.last_result
-        if result is None:
-            time.sleep(0.01)
+class LoopSegmentation:
+    def __init__(self, segmentation_client: SegmentationClient):
+        self._segmentation_client = segmentation_client
+        self._last_result = None
+        self._stop = False
+        self._thread = threading.Thread(target=self._loop, daemon=True)
+        self._thread.start()
+
+    def _loop(self):
+        for frame, segmented_items in self._segmentation_client:
+            self._last_result = {
+                'frame': frame,
+                'segmented_items': segmented_items
+            }
+            if self._stop: break
+
+    @property
+    def last_result(self):
+        return self._last_result
+    
+    def stop(self):
+        self._logger.info("stopping segmentation loop")
+        self._stop = True
+        self._thread.join()
+        self._logger.info("segmentation loop stopped")
+
+    @property
+    def is_running(self):
+        return self._thread.is_alive()
+
+def main(segmentation_loop: LoopSegmentation):
+    logger = logging.getLogger("main")
+    while segmentation_loop.is_running:
+        time.sleep(0.1)
+        if segmentation_loop.last_result is None:
             continue
-        image = result['frame']
-        boxes = [item.bounding_box for item in result['items']]
-        phrases = [item.label for item in result['items']]
-        detection_confidences = [item.detection_confidence for item in result['items']]
-        image = draw_boxes(image, boxes, phrases, detection_confidences)
-        for masks in [item.masks for item in result['items']]:
+        frame = segmentation_loop.last_result['frame']
+        segmented_items = segmentation_loop.last_result['segmented_items']
+        boxes = [item.bounding_box for item in segmented_items]
+        phrases = [item.label for item in segmented_items]
+        detection_confidences = [item.detection_confidence for item in segmented_items]
+        frame = draw_boxes(frame, boxes, phrases, detection_confidences)
+        for masks in [item.masks for item in segmented_items]:
             for mask in masks:
                 mask_array = mask.mask
-                image = draw_box_mask(image, mask_array, color=(0, 255, 0))
-        cv2.imshow('segmented items', image)
+                frame = draw_box_mask(frame, mask_array, color=(0, 255, 0))
+        cv2.imshow('segmented items', frame)
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
+    else:
+        logger.info("segmentation loop stopped")
 
 if __name__ == '__main__':
     try:
-        main()
+        logging.basicConfig(level=logging.DEBUG)    
+        grpc_channel = grpc.insecure_channel('localhost:50051')
+        video_generator = VideoCaptureBuffless(0)
+        video_generator.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
+        video_generator.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+        detector_client = DetectionClient(grpc_channel=grpc_channel,
+                                        video_iterator=video_generator,
+                                        prompt='monitor . cup . human',
+                                        box_threshold=0.05,
+                                        text_threshold=0.05, 
+                                        confidence_threshold=0.2)
+        segmentor_client = SegmentationClient(grpc_channel=grpc_channel,
+                                            detection_iterator=detector_client)
+        
+        segmentation_loop = LoopSegmentation(segmentor_client)
+        main(segmentation_loop)
     except KeyboardInterrupt:
-        pass
+        segmentation_loop.stop()
+        video_generator.release()
+        cv2.destroyAllWindows()
+        
