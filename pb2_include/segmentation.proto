@@ -3,11 +3,11 @@ syntax = "proto3";
 package segmentation;
 
 service Detection {
-    rpc detect (stream DetectionRequest) returns (stream DetectionResult) {}
+    rpc detect (DetectionRequest) returns (DetectionResult) {}
 }
 
 service Segmentation {
-    rpc segment (stream SegmentationRequest) returns (stream SegmentationResult) {}
+    rpc segment (SegmentationRequest) returns (SegmentationResult) {}
 }
 
 message SegmentationRequest {

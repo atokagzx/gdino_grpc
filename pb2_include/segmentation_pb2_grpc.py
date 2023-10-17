@@ -14,7 +14,7 @@ class DetectionStub(object):
         Args:
             channel: A grpc.Channel.
         """
-        self.detect = channel.stream_stream(
+        self.detect = channel.unary_unary(
                 '/segmentation.Detection/detect',
                 request_serializer=segmentation__pb2.DetectionRequest.SerializeToString,
                 response_deserializer=segmentation__pb2.DetectionResult.FromString,
@@ -24,7 +24,7 @@ class DetectionStub(object):
 class DetectionServicer(object):
     """Missing associated documentation comment in .proto file."""
 
-    def detect(self, request_iterator, context):
+    def detect(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -33,7 +33,7 @@ class DetectionServicer(object):
 
 def add_DetectionServicer_to_server(servicer, server):
     rpc_method_handlers = {
-            'detect': grpc.stream_stream_rpc_method_handler(
+            'detect': grpc.unary_unary_rpc_method_handler(
                     servicer.detect,
                     request_deserializer=segmentation__pb2.DetectionRequest.FromString,
                     response_serializer=segmentation__pb2.DetectionResult.SerializeToString,
@@ -49,7 +49,7 @@ class Detection(object):
     """Missing associated documentation comment in .proto file."""
 
     @staticmethod
-    def detect(request_iterator,
+    def detect(request,
             target,
             options=(),
             channel_credentials=None,
@@ -59,7 +59,7 @@ class Detection(object):
             wait_for_ready=None,
             timeout=None,
             metadata=None):
-        return grpc.experimental.stream_stream(request_iterator, target, '/segmentation.Detection/detect',
+        return grpc.experimental.unary_unary(request, target, '/segmentation.Detection/detect',
             segmentation__pb2.DetectionRequest.SerializeToString,
             segmentation__pb2.DetectionResult.FromString,
             options, channel_credentials,
@@ -75,7 +75,7 @@ class SegmentationStub(object):
         Args:
             channel: A grpc.Channel.
         """
-        self.segment = channel.stream_stream(
+        self.segment = channel.unary_unary(
                 '/segmentation.Segmentation/segment',
                 request_serializer=segmentation__pb2.SegmentationRequest.SerializeToString,
                 response_deserializer=segmentation__pb2.SegmentationResult.FromString,
@@ -85,7 +85,7 @@ class SegmentationStub(object):
 class SegmentationServicer(object):
     """Missing associated documentation comment in .proto file."""
 
-    def segment(self, request_iterator, context):
+    def segment(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -94,7 +94,7 @@ class SegmentationServicer(object):
 
 def add_SegmentationServicer_to_server(servicer, server):
     rpc_method_handlers = {
-            'segment': grpc.stream_stream_rpc_method_handler(
+            'segment': grpc.unary_unary_rpc_method_handler(
                     servicer.segment,
                     request_deserializer=segmentation__pb2.SegmentationRequest.FromString,
                     response_serializer=segmentation__pb2.SegmentationResult.SerializeToString,
@@ -110,7 +110,7 @@ class Segmentation(object):
     """Missing associated documentation comment in .proto file."""
 
     @staticmethod
-    def segment(request_iterator,
+    def segment(request,
             target,
             options=(),
             channel_credentials=None,
@@ -120,7 +120,7 @@ class Segmentation(object):
             wait_for_ready=None,
             timeout=None,
             metadata=None):
-        return grpc.experimental.stream_stream(request_iterator, target, '/segmentation.Segmentation/segment',
+        return grpc.experimental.unary_unary(request, target, '/segmentation.Segmentation/segment',
             segmentation__pb2.SegmentationRequest.SerializeToString,
             segmentation__pb2.SegmentationResult.FromString,
             options, channel_credentials,

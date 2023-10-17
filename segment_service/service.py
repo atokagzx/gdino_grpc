@@ -1,30 +1,25 @@
 #!/usr/bin/env python3
 
-import os, sys
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'pb2_include'))
-
+from modules.pb2_init import *
 import grpc
 from concurrent import futures
-import segmentation_pb2_grpc as pb2_grpc
-import segmentation_pb2 as pb2
 import cv2
 import numpy as np
 import logging
 from typing import List, Tuple
 
-from adapters import GDINOAdapter, SAMAdapter
+from modules.adapters import GDINOAdapter, SAMAdapter
 
 class Detection(pb2_grpc.DetectionServicer):
     def __init__(self, detector):
         self._logger = logging.getLogger("detection_servicer")
         self._detector = detector
 
-    def detect(self, request_iterator, context):
-        for request in request_iterator:
-            self._logger.debug("received request")
-            response = self._process_request(request)
-            self._logger.debug("yielding response")
-            yield response
+    def detect(self, request, context):
+        self._logger.debug("received request")
+        response = self._process_request(request)
+        self._logger.debug("yielding response")
+        return response
 
     def _process_request(self, request: pb2.DetectionRequest) -> pb2.DetectionResult:
         '''
@@ -48,12 +43,11 @@ class Segmentation(pb2_grpc.SegmentationServicer):
         self._logger = logging.getLogger("segmentation_servicer")
         self._segmentor = segmentor
 
-    def segment(self, request_iterator, context):
-        for request in request_iterator:
-            self._logger.debug("received request")
-            response = self._process_request(request)
-            self._logger.debug("yielding response")
-            yield response
+    def segment(self, request, context):
+        self._logger.debug("received request")
+        response = self._process_request(request)
+        self._logger.debug("yielding response")
+        return response
 
     def _process_request(self, request: pb2.SegmentationRequest) -> pb2.SegmentationResult:
         '''
@@ -66,7 +60,6 @@ class Segmentation(pb2_grpc.SegmentationServicer):
         phrases = request.phrases
         segmented_items = self._segmentor.segment(image, bboxes, phrases)
         items = [pb2.SegmentedItem(masks=self._mask_to_proto(segmented_item)) for segmented_item in segmented_items]
-        sleep(5)
         return pb2.SegmentationResult(items=items)
 
     def _mask_to_proto(self, item: List[dict]) -> List[pb2.SegmentationMask]:
@@ -81,8 +74,8 @@ class Segmentation(pb2_grpc.SegmentationServicer):
                 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
-    logging.getLogger("detection_servicer").setLevel(logging.DEBUG)
-    logging.getLogger("segmentation_servicer").setLevel(logging.DEBUG)
+    # logging.getLogger("detection_servicer").setLevel(logging.DEBUG)
+    # logging.getLogger("segmentation_servicer").setLevel(logging.DEBUG)
     detector = GDINOAdapter()
     segmentor = SAMAdapter()
     detection_service = Detection(detector)
