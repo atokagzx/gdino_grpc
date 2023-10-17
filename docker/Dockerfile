@@ -126,4 +126,4 @@ RUN pip3 install /GroundingDINO
 RUN pip install grpcio grpcio-tools fastapi requests
 ENV TOKENIZER_PARALLELISM false
 WORKDIR /workspace
-ENTRYPOINT /bin/bash
+ENTRYPOINT ["/bin/bash", "-c"]

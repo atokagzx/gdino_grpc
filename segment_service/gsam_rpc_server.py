@@ -7,7 +7,7 @@ import cv2
 import numpy as np
 import logging
 from typing import List, Tuple
-
+import argparse
 from modules.adapters import GDINOAdapter, SAMAdapter
 
 class Detection(pb2_grpc.DetectionServicer):
@@ -32,12 +32,11 @@ class Detection(pb2_grpc.DetectionServicer):
         box_threshold = request.box_threshold
         text_threshold = request.text_threshold
         detected_items_list = self._detector.find_categories(image, prompt, box_threshold, text_threshold)
-        items = [pb2.DetectedItem(bounding_box=pb2.BoundingBox(x1=box[0], x2=box[2], y1=box[1], y2=box[3]), 
+        items = [pb2.DetectedItem(bounding_box=pb2.BoundingBox(**dict(zip(["x1", "y1", "x2", "y2"], box))),
                                             label=label, 
                                             confidence=confidence) for box, label, confidence in detected_items_list]
         return pb2.DetectionResult(items=items)
         
-from time import sleep
 class Segmentation(pb2_grpc.SegmentationServicer):
     def __init__(self, segmentor):
         self._logger = logging.getLogger("segmentation_servicer")
@@ -56,7 +55,7 @@ class Segmentation(pb2_grpc.SegmentationServicer):
         @return: segmentation result: segmentation_masks
         '''
         image = np.frombuffer(request.image.data, dtype=np.uint8).reshape(request.image.shape)
-        bboxes = [np.array([box.x1, box.y1, box.x2, box.y2]) for box in request.bounding_boxes]
+        bboxes = [np.array([getattr(box, attr) for attr in ["x1", "y1", "x2", "y2"]]) for box in request.bounding_boxes]
         phrases = request.phrases
         segmented_items = self._segmentor.segment(image, bboxes, phrases)
         items = [pb2.SegmentedItem(masks=self._mask_to_proto(segmented_item)) for segmented_item in segmented_items]
@@ -76,6 +75,10 @@ if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
     # logging.getLogger("detection_servicer").setLevel(logging.DEBUG)
     # logging.getLogger("segmentation_servicer").setLevel(logging.DEBUG)
+    
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-a", "--address", type=str, default="[::]:50051")
+    args = parser.parse_args()
     detector = GDINOAdapter()
     segmentor = SAMAdapter()
     detection_service = Detection(detector)
@@ -83,6 +86,7 @@ if __name__ == '__main__':
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=2))
     pb2_grpc.add_DetectionServicer_to_server(detection_service, server)
     pb2_grpc.add_SegmentationServicer_to_server(segmentation_service, server)
-    server.add_insecure_port('[::]:50051')
+    logging.info(f"starting gRPC server on {args.address}")
+    server.add_insecure_port(args.address)
     server.start()
     server.wait_for_termination()

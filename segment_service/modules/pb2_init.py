@@ -1,5 +1,8 @@
-import os, sys
-sys.path.append(os.path.join(os.path.dirname(__file__), '../..', 'pb2_include'))
+import os, sys  
+_pb2_path = os.path.join(os.path.dirname(__file__), '..', '..', 'pb2_include')
+sys.path.append(_pb2_path)
+print(f"appending {_pb2_path} to sys.path")
 
-import segmentation_pb2_grpc as pb2_grpc
-import segmentation_pb2 as pb2
+from __init__ import *
+sys.path.remove(_pb2_path)
+print(f"removing {_pb2_path} from sys.path")

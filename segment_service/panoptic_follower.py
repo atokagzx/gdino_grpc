@@ -61,6 +61,13 @@ class LoopSegmentation:
     @property
     def is_running(self):
         return self._thread.is_alive()
+    
+class PanopticFollower:
+    def __init__(self, detection_client: DetectionClient):
+        self._logger = logging.getLogger("panoptic_follower")
+        self._stop = False
+        self._thread = threading.Thread(target=self._loop, daemon=True)
+        self._thread.start()
 
 def draw_boxes(image, boxes, phrases, logits):
     for box, phrase, logit in zip(boxes, phrases, logits):
@@ -122,7 +129,6 @@ if __name__ == '__main__':
                                     box_threshold=0.05,
                                     text_threshold=0.05, 
                                     confidence_threshold=0.2)
-    segmentor_client = SegmentationClient(grpc_channel=grpc_channel)
     try:
         segmentation_loop = LoopSegmentation(frames_provider, detector_iterator, segmentor_client)
         main(segmentation_loop)

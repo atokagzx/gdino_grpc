@@ -5,6 +5,6 @@ EXEC_PATH=$PWD
 cd $ROOT_DIR
 
 docker build -t panoptic_exp-img -f $ROOT_DIR/docker/Dockerfile $ROOT_DIR \
-                                --network=host \
+                                --network=host
 
 cd $EXEC_PATH
