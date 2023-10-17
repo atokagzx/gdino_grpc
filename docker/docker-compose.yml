@@ -1,0 +1,22 @@
+version: '3.9'
+
+services:
+  gsam_rpc:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - ..:/workspace
+      - $HOME/.cache/gdino_grpc:/root/.cache
+    network_mode: "host"
+    command: 
+        - /workspace/segment_service/gsam_rpc_server.py --address localhost:50051
+    restart: always
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
