@@ -23,9 +23,9 @@ class VideoCaptureBuffless(cv2.VideoCapture):
         return super().retrieve()
 
 class LoopSegmentation:
-    def __init__(self, video_client: cv2.VideoCapture, detector_iterator: DetectionClient, segmentation_client: SegmentationClient):
+    def __init__(self, frames_provider: cv2.VideoCapture, detector_iterator: DetectionClient, segmentation_client: SegmentationClient):
         self._logger = logging.getLogger("loop_segmentation")
-        self._video_client = video_client
+        self._frames_provider = frames_provider
         self._detector_iterator = detector_iterator
         self._segmentation_client = segmentation_client
         self._last_result = None
@@ -37,9 +37,9 @@ class LoopSegmentation:
         for frame, detection_result in self._detector_iterator:
             if self._stop:
                 break
-            ret, frame = self._video_client.read()
+            ret, frame = self._frames_provider.read()
             if not ret:
-                self._logger.info("video ended")
+                self._logger.info("failed to read new frame (end of video?)")
                 break
             self._detector_iterator.add_new_frame(frame)
             result = self._segmentation_client.process(frame, detection_result)
@@ -110,10 +110,10 @@ if __name__ == '__main__':
     try:
         logging.basicConfig(level=logging.INFO)
         grpc_channel = grpc.insecure_channel('localhost:50051')
-        video_client = VideoCaptureBuffless(0)
-        video_client.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
-        video_client.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
-        ret, frame = video_client.read()
+        frames_provider = VideoCaptureBuffless(0)
+        frames_provider.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
+        frames_provider.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+        ret, frame = frames_provider.read()
         if not ret:
             raise RuntimeError("failed to read from camera")
         detector_iterator = DetectionClient(grpc_channel=grpc_channel,
@@ -123,10 +123,10 @@ if __name__ == '__main__':
                                         text_threshold=0.05, 
                                         confidence_threshold=0.2)
         segmentor_client = SegmentationClient(grpc_channel=grpc_channel)
-        segmentation_loop = LoopSegmentation(video_client, detector_iterator, segmentor_client)
+        segmentation_loop = LoopSegmentation(frames_provider, detector_iterator, segmentor_client)
         main(segmentation_loop)
     except KeyboardInterrupt:
         segmentation_loop.stop()
-        video_client.release()
+        frames_provider.release()
         cv2.destroyAllWindows()
         
