@@ -8,7 +8,7 @@ import numpy as np
 import logging
 from typing import List, Tuple
 import argparse
-from modules.adapters import GDINOAdapter, SAMAdapter
+from modules.adapters import GDINOAdapter, SAMAdapter, CLIPSegAdapter
 
 class Detection(pb2_grpc.DetectionServicer):
     def __init__(self, detector):
@@ -69,7 +69,54 @@ class Segmentation(pb2_grpc.SegmentationServicer):
         '''
         return [pb2.SegmentationMask(mask=pb2.NumpyArray(shape=item_mask["mask"]['shape'], data=item_mask["mask"]['rle'].tobytes()),
                                      confidence=item_mask["confidence"]) for item_mask in item]
+
+class CLIPSegmentation(pb2_grpc.CLIPSegmentationServicer):
+    def __init__(self):
+        self._logger = logging.getLogger("clip_segmentation_servicer")
+        self._segmentor = CLIPSegAdapter()
+
+    def segment(self, request, context):
+        self._logger.debug("received request")
+        response = self._process_request(request)
+        # print("shape:", len(response), response[0].shape)
+        print(response[1].shape)
+        mask = response[0]
+        mask = mask.cpu().numpy()
+        mask *= 255
+        mask = mask.astype(np.uint8)
+        # print(f"shape: {mask.shape}")
+        # shape is (1, 720, 1280), make it (720, 1280, 1)
+        mask = np.squeeze(mask, axis=0)
+        mask = np.expand_dims(mask, axis=-1)
+        # print(f"shape: {mask.shape}")
+        
+        cv2.imshow("mask", mask)
+        cv2.waitKey(1)
+        self._logger.debug("yielding response")
+
+
+
+        # sem_mask = response[1]
+        # sem_mask = sem_mask.cpu().numpy()
+        # sem_mask *= 20
+        # sem_mask = sem_mask.astype(np.uint8)
+        # cv2.imshow("sem_mask", sem_mask)
+        # cv2.waitKey(1)
+
+
+        return pb2.CLIPSegResult(mask=pb2.NumpyArray(shape=mask.shape, data=mask.tobytes()))
+        # return pb2.CLIPSegResult(mask=pb2.NumpyArray(shape=mask.shape, data=mask.tobytes()))
+                                #  sem_mask=pb2.NumpyArray(shape=sem_mask.shape, data=sem_mask.tobytes()))
     
+    def _process_request(self, request: pb2.CLIPSegRequest) -> pb2.CLIPSegResult:
+        image = np.frombuffer(request.image.data, dtype=np.uint8).reshape(request.image.shape)
+        visual_prompt_image = np.frombuffer(request.visual_prompt_image.data, dtype=np.uint8).reshape(request.visual_prompt_image.shape)
+        print(f"image shape: {image.shape}")
+        print(f"visual_prompt_image shape: {visual_prompt_image.shape}")
+        # phrase = request.phrase
+        return self._segmentor.segment(image, visual_prompt_image, 0.01)
+
+
                 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
@@ -83,9 +130,11 @@ if __name__ == '__main__':
     segmentor = SAMAdapter()
     detection_service = Detection(detector)
     segmentation_service = Segmentation(segmentor)
+    clip_segmentation_service = CLIPSegmentation()
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=2))
     pb2_grpc.add_DetectionServicer_to_server(detection_service, server)
     pb2_grpc.add_SegmentationServicer_to_server(segmentation_service, server)
+    pb2_grpc.add_CLIPSegmentationServicer_to_server(clip_segmentation_service, server)
     logging.info(f"starting gRPC server on {args.address}")
     server.add_insecure_port(args.address)
     server.start()

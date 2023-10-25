@@ -11,6 +11,7 @@ from typing import Generator, Tuple, Union
 from modules.items_dataclasses import DetectedItem, SegmentedItem, Mask
 from modules.detection_client_wrapper import DetectionClient
 from modules.segmentation_client_wrapper import SegmentationClient
+from modules.clipseg_client_wrapper import CLIPSegClient
 
 class VideoCaptureBuffless(cv2.VideoCapture):
     def __init__(self, *args, **kwargs):
@@ -23,7 +24,7 @@ class VideoCaptureBuffless(cv2.VideoCapture):
         return super().retrieve()
 
 class LoopSegmentation:
-    def __init__(self, frames_provider: cv2.VideoCapture, detector_iterator: DetectionClient, segmentation_client: SegmentationClient):
+    def __init__(self, frames_provider: cv2.VideoCapture, detector_iterator: DetectionClient, segmentation_client: CLIPSegClient):
         self._logger = logging.getLogger("loop_segmentation")
         self._frames_provider = frames_provider
         self._detector_iterator = detector_iterator
@@ -42,7 +43,9 @@ class LoopSegmentation:
                 self._logger.info("failed to read new frame (end of video?)")
                 break
             self._detector_iterator.add_new_frame(new_frame)
-            result = self._segmentation_client.process(frame, detection_result)
+            # crop frame
+            crop = frame[0:100, 0:100]
+            result = self._segmentation_client.process(frame, detection_result, crop)
             self._last_result = {
                 'frame': result[0],
                 'segmented_items': result[1]
@@ -124,7 +127,7 @@ if __name__ == '__main__':
                                     box_threshold=0.05,
                                     text_threshold=0.3, 
                                     confidence_threshold=0.2)
-    segmentor_client = SegmentationClient(grpc_channel=grpc_channel)
+    segmentor_client = CLIPSegClient(grpc_channel=grpc_channel)
     try:
         segmentation_loop = LoopSegmentation(frames_provider, detector_iterator, segmentor_client)
         main(segmentation_loop)

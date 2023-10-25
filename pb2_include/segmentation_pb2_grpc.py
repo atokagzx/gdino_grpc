@@ -125,3 +125,64 @@ class Segmentation(object):
             segmentation__pb2.SegmentationResult.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+
+
+class CLIPSegmentationStub(object):
+    """Missing associated documentation comment in .proto file."""
+
+    def __init__(self, channel):
+        """Constructor.
+
+        Args:
+            channel: A grpc.Channel.
+        """
+        self.segment = channel.unary_unary(
+                '/segmentation.CLIPSegmentation/segment',
+                request_serializer=segmentation__pb2.CLIPSegRequest.SerializeToString,
+                response_deserializer=segmentation__pb2.CLIPSegResult.FromString,
+                )
+
+
+class CLIPSegmentationServicer(object):
+    """Missing associated documentation comment in .proto file."""
+
+    def segment(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+
+def add_CLIPSegmentationServicer_to_server(servicer, server):
+    rpc_method_handlers = {
+            'segment': grpc.unary_unary_rpc_method_handler(
+                    servicer.segment,
+                    request_deserializer=segmentation__pb2.CLIPSegRequest.FromString,
+                    response_serializer=segmentation__pb2.CLIPSegResult.SerializeToString,
+            ),
+    }
+    generic_handler = grpc.method_handlers_generic_handler(
+            'segmentation.CLIPSegmentation', rpc_method_handlers)
+    server.add_generic_rpc_handlers((generic_handler,))
+
+
+ # This class is part of an EXPERIMENTAL API.
+class CLIPSegmentation(object):
+    """Missing associated documentation comment in .proto file."""
+
+    @staticmethod
+    def segment(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(request, target, '/segmentation.CLIPSegmentation/segment',
+            segmentation__pb2.CLIPSegRequest.SerializeToString,
+            segmentation__pb2.CLIPSegResult.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)

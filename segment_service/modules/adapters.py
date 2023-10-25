@@ -3,11 +3,14 @@ import os
 import logging
 from typing import List, Tuple
 import torch
+from torch import nn
 import threading
 import numpy as np
 
+# SAM imports
 from segment_anything import build_sam, SamPredictor 
 
+# GroundingDINO imports
 import groundingdino.datasets.transforms as T
 from groundingdino.models import build_model
 from groundingdino.util import box_ops
@@ -17,6 +20,8 @@ from groundingdino.util.inference import predict as gd_predict
 from huggingface_hub import hf_hub_download
 from PIL import Image
 
+# CLIPSeg imports
+from transformers import CLIPSegProcessor, CLIPSegForImageSegmentation
 
 class GDINOAdapter:
     def __init__(self,
@@ -143,3 +148,65 @@ class SAMAdapter:
         runs = np.where(pixels[1:] != pixels[:-1])[0] + 1
         runs[1::2] -= runs[::2]
         return {"rle": runs, "shape": mask.shape}
+    
+class CLIPSegAdapter:
+    def __init__(self):
+        self._logger = logging.getLogger("clipseg_adapter")
+        self._device, self._model, self._processor = self._load_model()
+
+    def _load_model(self):
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self._logger.info(f'using device: "{device}"')
+        self._logger.info("loading processor")
+        clipseg_processor = CLIPSegProcessor.from_pretrained("CIDAS/clipseg-rd64-refined")
+        self._logger.info("loading model")
+        clipseg_model = CLIPSegForImageSegmentation.from_pretrained(
+            "CIDAS/clipseg-rd64-refined"
+        )
+        self._logger.info("loaded successfully")
+        clipseg_model.to(device)
+        return device, clipseg_model, clipseg_processor
+    
+    @staticmethod
+    def preds_to_semantic_inds(preds, threshold):
+        flat_preds = preds.reshape((preds.shape[0], -1))
+        # Initialize a dummy "unlabeled" mask with the threshold
+        flat_preds_with_treshold = torch.full(
+            (preds.shape[0] + 1, flat_preds.shape[-1]), threshold
+        )
+        flat_preds_with_treshold[1 : preds.shape[0] + 1, :] = flat_preds
+
+        # Get the top mask index for each pixel
+        semantic_inds = torch.topk(flat_preds_with_treshold, 1, dim=0).indices.reshape(
+            (preds.shape[-2], preds.shape[-1])
+        )
+
+        return semantic_inds
+
+
+    def segment(self, image, vis_prompt_image, background_threshold):
+        # cv2 to PIL
+        image = Image.fromarray(image).convert("RGB")
+        encoding = self._processor(
+            # text=category_names,
+            visual_prompt=vis_prompt_image,
+            images=image,
+            padding="max_length",
+            return_tensors="pt",
+        )
+        pixel_values = encoding["pixel_values"].to(self._device)
+        visual_prompt_pixel_values = encoding["conditional_pixel_values"].to(self._device)
+        with torch.no_grad():
+            outputs = self._model(pixel_values=pixel_values, conditional_pixel_values=visual_prompt_pixel_values)
+        logits = outputs.logits
+        if len(logits.shape) == 2:
+            logits = logits.unsqueeze(0)
+        # resize the outputs
+        upscaled_logits = nn.functional.interpolate(
+            logits.unsqueeze(1),
+            size=(image.size[1], image.size[0]),
+            mode="bilinear",
+        )
+        preds = torch.sigmoid(upscaled_logits.squeeze(dim=1))
+        semantic_inds = self.preds_to_semantic_inds(preds, background_threshold)
+        return preds, semantic_inds

@@ -10,6 +10,19 @@ service Segmentation {
     rpc segment (SegmentationRequest) returns (SegmentationResult) {}
 }
 
+service CLIPSegmentation {
+    rpc segment (CLIPSegRequest) returns (CLIPSegResult) {}
+}
+
+message CLIPSegRequest {
+    NumpyArray image = 1;
+    NumpyArray visual_prompt_image = 2;
+}
+
+message CLIPSegResult {
+    NumpyArray mask = 1;
+}
+
 message SegmentationRequest {
     NumpyArray image = 1;
     repeated BoundingBox bounding_boxes = 2;

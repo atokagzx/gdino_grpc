@@ -13,33 +13,39 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x12segmentation.proto\x12\x0csegmentation\"\x82\x01\n\x13SegmentationRequest\x12\'\n\x05image\x18\x01 \x01(\x0b\x32\x18.segmentation.NumpyArray\x12\x31\n\x0e\x62ounding_boxes\x18\x02 \x03(\x0b\x32\x19.segmentation.BoundingBox\x12\x0f\n\x07phrases\x18\x03 \x03(\t\"@\n\x12SegmentationResult\x12*\n\x05items\x18\x01 \x03(\x0b\x32\x1b.segmentation.SegmentedItem\">\n\rSegmentedItem\x12-\n\x05masks\x18\x04 \x03(\x0b\x32\x1e.segmentation.SegmentationMask\"N\n\x10SegmentationMask\x12&\n\x04mask\x18\x01 \x01(\x0b\x32\x18.segmentation.NumpyArray\x12\x12\n\nconfidence\x18\x02 \x01(\x02\"z\n\x10\x44\x65tectionRequest\x12\'\n\x05image\x18\x01 \x01(\x0b\x32\x18.segmentation.NumpyArray\x12\x0e\n\x06prompt\x18\x02 \x01(\t\x12\x15\n\rbox_threshold\x18\x03 \x01(\x02\x12\x16\n\x0etext_threshold\x18\x04 \x01(\x02\"<\n\x0f\x44\x65tectionResult\x12)\n\x05items\x18\x01 \x03(\x0b\x32\x1a.segmentation.DetectedItem\"b\n\x0c\x44\x65tectedItem\x12/\n\x0c\x62ounding_box\x18\x01 \x01(\x0b\x32\x19.segmentation.BoundingBox\x12\r\n\x05label\x18\x02 \x01(\t\x12\x12\n\nconfidence\x18\x03 \x01(\x02\")\n\nNumpyArray\x12\r\n\x05shape\x18\x01 \x03(\x05\x12\x0c\n\x04\x64\x61ta\x18\x02 \x01(\x0c\"=\n\x0b\x42oundingBox\x12\n\n\x02x1\x18\x01 \x01(\x05\x12\n\n\x02y1\x18\x02 \x01(\x05\x12\n\n\x02x2\x18\x03 \x01(\x05\x12\n\n\x02y2\x18\x04 \x01(\x05\x32V\n\tDetection\x12I\n\x06\x64\x65tect\x12\x1e.segmentation.DetectionRequest\x1a\x1d.segmentation.DetectionResult\"\x00\x32`\n\x0cSegmentation\x12P\n\x07segment\x12!.segmentation.SegmentationRequest\x1a .segmentation.SegmentationResult\"\x00\x62\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x12segmentation.proto\x12\x0csegmentation\"p\n\x0e\x43LIPSegRequest\x12\'\n\x05image\x18\x01 \x01(\x0b\x32\x18.segmentation.NumpyArray\x12\x35\n\x13visual_prompt_image\x18\x02 \x01(\x0b\x32\x18.segmentation.NumpyArray\"7\n\rCLIPSegResult\x12&\n\x04mask\x18\x01 \x01(\x0b\x32\x18.segmentation.NumpyArray\"\x82\x01\n\x13SegmentationRequest\x12\'\n\x05image\x18\x01 \x01(\x0b\x32\x18.segmentation.NumpyArray\x12\x31\n\x0e\x62ounding_boxes\x18\x02 \x03(\x0b\x32\x19.segmentation.BoundingBox\x12\x0f\n\x07phrases\x18\x03 \x03(\t\"@\n\x12SegmentationResult\x12*\n\x05items\x18\x01 \x03(\x0b\x32\x1b.segmentation.SegmentedItem\">\n\rSegmentedItem\x12-\n\x05masks\x18\x04 \x03(\x0b\x32\x1e.segmentation.SegmentationMask\"N\n\x10SegmentationMask\x12&\n\x04mask\x18\x01 \x01(\x0b\x32\x18.segmentation.NumpyArray\x12\x12\n\nconfidence\x18\x02 \x01(\x02\"z\n\x10\x44\x65tectionRequest\x12\'\n\x05image\x18\x01 \x01(\x0b\x32\x18.segmentation.NumpyArray\x12\x0e\n\x06prompt\x18\x02 \x01(\t\x12\x15\n\rbox_threshold\x18\x03 \x01(\x02\x12\x16\n\x0etext_threshold\x18\x04 \x01(\x02\"<\n\x0f\x44\x65tectionResult\x12)\n\x05items\x18\x01 \x03(\x0b\x32\x1a.segmentation.DetectedItem\"b\n\x0c\x44\x65tectedItem\x12/\n\x0c\x62ounding_box\x18\x01 \x01(\x0b\x32\x19.segmentation.BoundingBox\x12\r\n\x05label\x18\x02 \x01(\t\x12\x12\n\nconfidence\x18\x03 \x01(\x02\")\n\nNumpyArray\x12\r\n\x05shape\x18\x01 \x03(\x05\x12\x0c\n\x04\x64\x61ta\x18\x02 \x01(\x0c\"=\n\x0b\x42oundingBox\x12\n\n\x02x1\x18\x01 \x01(\x05\x12\n\n\x02y1\x18\x02 \x01(\x05\x12\n\n\x02x2\x18\x03 \x01(\x05\x12\n\n\x02y2\x18\x04 \x01(\x05\x32V\n\tDetection\x12I\n\x06\x64\x65tect\x12\x1e.segmentation.DetectionRequest\x1a\x1d.segmentation.DetectionResult\"\x00\x32`\n\x0cSegmentation\x12P\n\x07segment\x12!.segmentation.SegmentationRequest\x1a .segmentation.SegmentationResult\"\x00\x32Z\n\x10\x43LIPSegmentation\x12\x46\n\x07segment\x12\x1c.segmentation.CLIPSegRequest\x1a\x1b.segmentation.CLIPSegResult\"\x00\x62\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
 _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'segmentation_pb2', _globals)
 if _descriptor._USE_C_DESCRIPTORS == False:
   DESCRIPTOR._options = None
-  _globals['_SEGMENTATIONREQUEST']._serialized_start=37
-  _globals['_SEGMENTATIONREQUEST']._serialized_end=167
-  _globals['_SEGMENTATIONRESULT']._serialized_start=169
-  _globals['_SEGMENTATIONRESULT']._serialized_end=233
-  _globals['_SEGMENTEDITEM']._serialized_start=235
-  _globals['_SEGMENTEDITEM']._serialized_end=297
-  _globals['_SEGMENTATIONMASK']._serialized_start=299
-  _globals['_SEGMENTATIONMASK']._serialized_end=377
-  _globals['_DETECTIONREQUEST']._serialized_start=379
-  _globals['_DETECTIONREQUEST']._serialized_end=501
-  _globals['_DETECTIONRESULT']._serialized_start=503
-  _globals['_DETECTIONRESULT']._serialized_end=563
-  _globals['_DETECTEDITEM']._serialized_start=565
-  _globals['_DETECTEDITEM']._serialized_end=663
-  _globals['_NUMPYARRAY']._serialized_start=665
-  _globals['_NUMPYARRAY']._serialized_end=706
-  _globals['_BOUNDINGBOX']._serialized_start=708
-  _globals['_BOUNDINGBOX']._serialized_end=769
-  _globals['_DETECTION']._serialized_start=771
-  _globals['_DETECTION']._serialized_end=857
-  _globals['_SEGMENTATION']._serialized_start=859
-  _globals['_SEGMENTATION']._serialized_end=955
+  _globals['_CLIPSEGREQUEST']._serialized_start=36
+  _globals['_CLIPSEGREQUEST']._serialized_end=148
+  _globals['_CLIPSEGRESULT']._serialized_start=150
+  _globals['_CLIPSEGRESULT']._serialized_end=205
+  _globals['_SEGMENTATIONREQUEST']._serialized_start=208
+  _globals['_SEGMENTATIONREQUEST']._serialized_end=338
+  _globals['_SEGMENTATIONRESULT']._serialized_start=340
+  _globals['_SEGMENTATIONRESULT']._serialized_end=404
+  _globals['_SEGMENTEDITEM']._serialized_start=406
+  _globals['_SEGMENTEDITEM']._serialized_end=468
+  _globals['_SEGMENTATIONMASK']._serialized_start=470
+  _globals['_SEGMENTATIONMASK']._serialized_end=548
+  _globals['_DETECTIONREQUEST']._serialized_start=550
+  _globals['_DETECTIONREQUEST']._serialized_end=672
+  _globals['_DETECTIONRESULT']._serialized_start=674
+  _globals['_DETECTIONRESULT']._serialized_end=734
+  _globals['_DETECTEDITEM']._serialized_start=736
+  _globals['_DETECTEDITEM']._serialized_end=834
+  _globals['_NUMPYARRAY']._serialized_start=836
+  _globals['_NUMPYARRAY']._serialized_end=877
+  _globals['_BOUNDINGBOX']._serialized_start=879
+  _globals['_BOUNDINGBOX']._serialized_end=940
+  _globals['_DETECTION']._serialized_start=942
+  _globals['_DETECTION']._serialized_end=1028
+  _globals['_SEGMENTATION']._serialized_start=1030
+  _globals['_SEGMENTATION']._serialized_end=1126
+  _globals['_CLIPSEGMENTATION']._serialized_start=1128
+  _globals['_CLIPSEGMENTATION']._serialized_end=1218
 # @@protoc_insertion_point(module_scope)
